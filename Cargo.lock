@@ -237,6 +237,7 @@ version = "0.1.2"
 dependencies = [
  "chess-engine",
  "magnus",
+ "rb-sys",
 ]
 
 [[package]]

@@ -11,6 +11,40 @@ use crate::{
     position::Position,
 };
 
+unsafe fn call_without_gvl<Func, FuncReturn>(func: Func) -> FuncReturn
+where
+    Func: FnMut() -> FuncReturn,
+{
+    use std::ffi::c_void;
+
+    unsafe extern "C" fn anon_func<Func, FuncReturn>(data: *mut c_void) -> *mut c_void
+    where
+        Func: FnMut() -> FuncReturn,
+    {
+        let mut func: Func = *Box::from_raw(data as *mut Func);
+
+        Box::into_raw(Box::new(func())) as *mut _
+    }
+
+    //? SAFETY: We box the function and args to pass them over the FFI boundary.
+    let boxed_args = Box::new(func);
+
+    let result = rb_sys::rb_thread_call_without_gvl(
+        Some(anon_func::<Func, FuncReturn>),
+        Box::into_raw(boxed_args) as *mut _,
+        None,
+        std::ptr::null_mut(),
+    );
+
+    *Box::from_raw(result as _)
+}
+
+macro_rules! no_gvl {
+    ($fun:expr) => {
+        unsafe { call_without_gvl(|| $fun) }
+    };
+}
+
 #[magnus::wrap(class = "Silverpoint::Board", size, free_immediately)]
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
@@ -42,7 +76,7 @@ impl Board {
     }
 
     fn rating_bar(&self, len: usize) -> String {
-        self.0.rating_bar(len)
+        no_gvl!(self.0.rating_bar(len))
     }
 
     fn get_turn_color(&self) -> Color {
@@ -66,7 +100,7 @@ impl Board {
     }
 
     fn get_material_advantage(&self, &color: &Color) -> i32 {
-        self.0.get_material_advantage(color.into())
+        no_gvl!(self.0.get_material_advantage(color.into()))
     }
 
     fn get_piece(&self, &pos: &Position) -> Option<Piece> {
@@ -94,11 +128,11 @@ impl Board {
     }
 
     fn is_threatened(&self, &pos: &Position, &ally_color: &Color) -> bool {
-        self.0.is_threatened(pos.into(), ally_color.into())
+        no_gvl!(self.0.is_threatened(pos.into(), ally_color.into()))
     }
 
     fn is_in_check(&self, &color: &Color) -> bool {
-        self.0.is_in_check(color.into())
+        no_gvl!(self.0.is_in_check(color.into()))
     }
 
     fn can_kingside_castle(&self, &color: &Color) -> bool {
@@ -110,19 +144,19 @@ impl Board {
     }
 
     fn has_sufficient_material(&self, &color: &Color) -> bool {
-        self.0.has_sufficient_material(color.into())
+        no_gvl!(self.0.has_sufficient_material(color.into()))
     }
 
     fn has_insufficient_material(&self, &color: &Color) -> bool {
-        self.0.has_insufficient_material(color.into())
+        no_gvl!(self.0.has_insufficient_material(color.into()))
     }
 
     fn is_stalemate(&self) -> bool {
-        self.0.is_stalemate()
+        no_gvl!(self.0.is_stalemate())
     }
 
     fn is_checkmate(&self) -> bool {
-        self.0.is_checkmate()
+        no_gvl!(self.0.is_checkmate())
     }
 
     fn change_turn(&self) -> Self {
@@ -130,7 +164,7 @@ impl Board {
     }
 
     fn play_move(&self, &m: &Move) -> GameResult {
-        self.0.play_move(m.into()).into()
+        no_gvl!(self.0.play_move(m.into()).into())
     }
 
     fn to_string(&self) -> String {
@@ -144,7 +178,7 @@ impl Board {
 
 impl Board {
     fn value_for(&self, &color: &Color) -> f64 {
-        self.0.value_for(color.into())
+        no_gvl!(self.0.value_for(color.into()))
     }
 
     fn get_current_player_color(&self) -> Color {
@@ -156,21 +190,23 @@ impl Board {
     }
 
     fn get_legal_moves(&self) -> Vec<Move> {
-        self.0
+        no_gvl! {
+            self.0
             .get_legal_moves()
             .into_iter()
             .map(Into::into)
             .collect()
+        }
     }
 
     fn get_best_next_move(&self, depth: i32) -> (Move, u64, f64) {
-        let (m, u, f) = self.0.get_best_next_move(depth);
+        let (m, u, f) = no_gvl!(self.0.get_best_next_move(depth));
 
         (m.into(), u, f)
     }
 
     fn get_worst_next_move(&self, depth: i32) -> (Move, u64, f64) {
-        let (m, u, f) = self.0.get_worst_next_move(depth);
+        let (m, u, f) = no_gvl!(self.0.get_worst_next_move(depth));
 
         (m.into(), u, f)
     }
@@ -184,17 +220,19 @@ impl Board {
         &getting_move_for: &Color,
         mut board_count: u64,
     ) -> (f64, u64) {
-        (
-            self.0.minimax(
-                depth,
-                alpha,
-                beta,
-                is_maximizing,
-                getting_move_for.into(),
-                &mut board_count,
-            ),
-            board_count,
-        )
+        no_gvl! {
+            (
+                self.0.minimax(
+                    depth,
+                    alpha,
+                    beta,
+                    is_maximizing,
+                    getting_move_for.into(),
+                    &mut board_count,
+                ),
+                board_count,
+            )
+        }
     }
 }
 

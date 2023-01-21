@@ -18,7 +18,7 @@ def get_cpu_move(board, best)
         board.worst_next_move(4)
     end
 
-    print "CPU evaluated #{count} moves before choosing to "
+    print "\nCPU evaluated #{count} moves before choosing to "
 
     if move.piece?
         (from, to) = move.piece_positions
@@ -42,19 +42,46 @@ def get_cpu_move(board, best)
     move
 end
 
+
+
+
 board = Silverpoint::Board::new
 puts board
 history = []
+
+best_queue = Thread::Queue.new
+move_queue = Thread::Queue.new
+move_thread = Thread.new do 
+    loop do
+        best = best_queue.pop
+
+        move_queue << get_cpu_move(board, best)
+    end
+end
 
 loop do
     s = input(">>> ")
 
     m = if s.empty? 
-        puts "Waiting for CPU to choose best move..."
-        get_cpu_move(board, true)
+        print "Waiting for CPU to choose best move"
+        best_queue << true
+
+        until move_queue.length.positive?
+            print "."
+            sleep(1.0 / 30.0)
+        end
+
+        move_queue.pop
     elsif s == "worst"
-        puts "Waiting for CPU to choose worst move..."
-        get_cpu_move(board, false)
+        print "Waiting for CPU to choose worst move"
+        best_queue << false
+
+        until move_queue.length.positive?
+            print "."
+            sleep(1.0 / 30.0)
+        end
+
+        move_queue.pop
     elsif s == "rate"
         next
     elsif s == "pass"
