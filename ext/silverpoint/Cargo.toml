@@ -9,6 +9,6 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-magnus = { version = "0.4", features = ["rb-sys-interop"] }
+magnus = { version = "0.7.1", features = ["rb-sys"] }
 rb-sys = "0.9"
 chess-engine = "0.1.2"

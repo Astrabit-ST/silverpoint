@@ -10,12 +10,12 @@ mod position;
 mod square;
 
 #[magnus::init]
-pub fn init() -> Result<(), magnus::Error> {
+pub fn init(ruby: &magnus::Ruby) -> Result<(), magnus::Error> {
     let module = magnus::define_module("Silverpoint")?;
-    board::bind(module)?;
-    square::bind(module)?;
-    position::bind(module)?;
-    enums::bind(module)?;
+    board::bind(ruby, module)?;
+    square::bind(ruby, module)?;
+    position::bind(ruby, module)?;
+    enums::bind(ruby, module)?;
 
     Ok(())
 }

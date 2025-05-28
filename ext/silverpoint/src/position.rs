@@ -16,6 +16,8 @@ use crate::enums::Color;
 #[repr(transparent)]
 pub struct Position(chess_engine::Position);
 
+unsafe impl magnus::IntoValueFromNative for Position {}
+
 impl From<chess_engine::Position> for Position {
     fn from(value: chess_engine::Position) -> Self {
         Self(value)
@@ -44,7 +46,10 @@ impl Position {
     fn pgn(str: String) -> Result<Self, magnus::Error> {
         chess_engine::Position::pgn(&str)
             .map(Into::into)
-            .map_err(magnus::Error::runtime_error)
+            .map_err(|err| {
+                let ruby = magnus::Ruby::get().unwrap();
+                magnus::Error::new(ruby.exception_runtime_error(), err)
+            })
     }
 
     fn is_on_board(&self) -> bool {
@@ -156,8 +161,8 @@ impl Position {
     }
 }
 
-pub fn bind(module: impl Module) -> Result<(), magnus::Error> {
-    let class = module.define_class("Position", Default::default())?;
+pub fn bind(ruby: &magnus::Ruby, module: impl Module) -> Result<(), magnus::Error> {
+    let class = module.define_class("Position", ruby.class_object())?;
 
     class.define_singleton_method("king_pos", function!(Position::king_pos, 1))?;
     class.define_singleton_method("queen_pos", function!(Position::queen_pos, 1))?;

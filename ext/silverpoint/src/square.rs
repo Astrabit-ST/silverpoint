@@ -38,8 +38,8 @@ impl Square {
     }
 }
 
-pub fn bind(module: impl magnus::Module) -> Result<(), magnus::Error> {
-    let class = module.define_class("Square", Default::default())?;
+pub fn bind(ruby: &magnus::Ruby, module: impl magnus::Module) -> Result<(), magnus::Error> {
+    let class = module.define_class("Square", ruby.class_object())?;
     class.define_method("empty?", method!(Square::is_empty, 0))?;
     class.define_method("piece", method!(Square::get_piece, 0))?;
 

@@ -126,6 +126,8 @@ impl Piece {
 #[repr(transparent)]
 pub struct Move(chess_engine::Move);
 
+unsafe impl magnus::IntoValueFromNative for Move {}
+
 impl From<chess_engine::Move> for Move {
     fn from(value: chess_engine::Move) -> Self {
         Self(value)
@@ -158,7 +160,10 @@ impl Move {
     fn parse(str: String) -> Result<Self, magnus::Error> {
         chess_engine::Move::parse(str)
             .map(Into::into)
-            .map_err(magnus::Error::runtime_error)
+            .map_err(|err| {
+                let ruby = magnus::Ruby::get().unwrap();
+                magnus::Error::new(ruby.exception_runtime_error(), err)
+            })
     }
 
     fn is_queenside_castle(&self) -> bool {
@@ -257,8 +262,8 @@ impl GameResult {
     }
 }
 
-pub fn bind(module: impl magnus::Module) -> Result<(), magnus::Error> {
-    let class = module.define_class("Color", Default::default())?;
+pub fn bind(ruby: &magnus::Ruby, module: impl magnus::Module) -> Result<(), magnus::Error> {
+    let class = module.define_class("Color", ruby.class_object())?;
     class.const_set("White", Color(chess_engine::Color::White))?;
     class.const_set("Black", Color(chess_engine::Color::Black))?;
 
@@ -267,7 +272,7 @@ pub fn bind(module: impl magnus::Module) -> Result<(), magnus::Error> {
     class.define_method("==", method!(Color::eq, 1))?;
     class.define_method("!=", method!(Color::ne, 1))?;
 
-    let class = module.define_class("Piece", Default::default())?;
+    let class = module.define_class("Piece", ruby.class_object())?;
     class.define_method("name", method!(Piece::get_name, 0))?;
     class.define_method("material_value", method!(Piece::get_material_value, 0))?;
     class.define_method("with_color", method!(Piece::with_color, 1))?;
@@ -289,7 +294,7 @@ pub fn bind(module: impl magnus::Module) -> Result<(), magnus::Error> {
     class.define_method("==", method!(Piece::eq, 1))?;
     class.define_method("!=", method!(Piece::ne, 1))?;
 
-    let class = module.define_class("Move", Default::default())?;
+    let class = module.define_class("Move", ruby.class_object())?;
     class.define_singleton_method(
         "new_queenside_castle",
         function!(Move::new_queenside_castle, 0),
@@ -313,7 +318,7 @@ pub fn bind(module: impl magnus::Module) -> Result<(), magnus::Error> {
     class.define_method("==", method!(Move::eq, 1))?;
     class.define_method("!=", method!(Move::ne, 1))?;
 
-    let class = module.define_class("GameResult", Default::default())?;
+    let class = module.define_class("GameResult", ruby.class_object())?;
     class.define_method("continuing?", method!(GameResult::is_continuing, 0))?;
     class.define_method("victory?", method!(GameResult::is_victory, 0))?;
     class.define_method("stalemate?", method!(GameResult::is_stalemate, 0))?;

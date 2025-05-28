@@ -236,8 +236,8 @@ impl Board {
     }
 }
 
-pub fn bind(module: impl Module) -> Result<(), magnus::Error> {
-    let class = module.define_class("Board", Default::default())?;
+pub fn bind(ruby: &magnus::Ruby, module: impl Module) -> Result<(), magnus::Error> {
+    let class = module.define_class("Board", ruby.class_object())?;
     class.define_singleton_method("new", function!(Board::new, 0))?;
     class.define_singleton_method("horde", function!(Board::horde, 0))?;
     class.define_singleton_method("empty", function!(Board::empty, 0))?;
